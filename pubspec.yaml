@@ -1,0 +1,40 @@
+name: golf_go
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.8.1 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: 1.0.8
+
+  # Animation
+  flutter_animate: 4.4.0
+
+  # Google Sign-In (aligns with iOS SDK v8.x)
+  google_sign_in: ^6.1.5
+  sign_in_with_apple: 4.3.0
+
+  # State management
+  provider: 6.1.1
+
+  # Firebase - upgraded to iOS SDK 11.x compatibility
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.2
+  cloud_firestore: ^5.6.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 3.0.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

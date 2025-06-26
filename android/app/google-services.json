@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "656324666081",
+    "project_id": "golf-go-18da2",
+    "storage_bucket": "golf-go-18da2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:656324666081:android:f9fb4776ef83d2bc364da0",
+        "android_client_info": {
+          "package_name": "com.golfgo.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "656324666081-k0ct6jhkro41b23u0mm6513tmr2dhd56.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYCGMyAcUVnwHYlFZGJVy0CIUgVQBOcNk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "656324666081-k0ct6jhkro41b23u0mm6513tmr2dhd56.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "656324666081-2gf08fqlqmldo89ca9n3aki534s4vrpc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.golfgo.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
