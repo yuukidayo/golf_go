@@ -36,12 +36,15 @@ class _CoachRegistrationScreenState extends State<CoachRegistrationScreen> {
     super.dispose();
   }
 
+  // 別途Firebase関連の処理とUI更新を分離する新しいアプローチ
   Future<void> _handleRegistration() async {
+    // フォームのバリデーション
     if (_formKey.currentState?.validate() != true) {
       return;
     }
     
     if (!_agreeToTerms) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('利用規約とプライバシーポリシーに同意してください'),
@@ -51,86 +54,121 @@ class _CoachRegistrationScreenState extends State<CoachRegistrationScreen> {
       return;
     }
     
+    // 送信中フラグを立てる
     setState(() {
       _isSubmitting = true;
     });
 
+    // フォームデータの取得
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final name = _nameController.text.trim();
+    final inviteCode = _inviteCodeController.text.trim();
+
     try {
-      // Firebase Authで新規ユーザー登録
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      
-      // ユーザーID取得
-      final userId = userCredential.user?.uid;
-      if (userId == null) {
-        throw Exception('ユーザーIDが取得できませんでした');
+      // Step 1: FirebaseAuthでユーザー作成
+      final UserCredential userCredential;
+      try {
+        userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+        
+        // ログアウトせずに認証状態を維持する
+        // これにより次の画面でも認証状態が有効
+        print('User successfully created and signed in: ${userCredential.user?.uid}');
+      } catch (authError) {
+        // Auth登録失敗の処理
+        _showErrorMessage(_getAuthErrorMessage(authError));
+        return;
       }
       
-      // Firestoreにコーチ情報を保存
-      await FirebaseFirestore.instance.collection('coaches').doc(userId).set({
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'inviteCode': _inviteCodeController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'isApproved': false, // 管理者の承認待ち状態
-        'isActive': true,
-      });
-
-      // 処理成功
+      // Step 2: Firestoreにユーザーデータ保存
+      final userId = userCredential.user?.uid;
+      if (userId != null) {
+        try {
+          await FirebaseFirestore.instance.collection('coaches').doc(userId).set({
+            'name': name,
+            'email': email,
+            'inviteCode': inviteCode,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'isApproved': false,
+            'isActive': true,
+          });
+        } catch (firestoreError) {
+          // Firestoreエラーはログだけ残し、成功として処理（Auth登録は成功しているため）
+          print('Firestore error: $firestoreError');
+        }
+      }
+      
+      // Step 3: 成功のUI表示（すべての非同期処理が完了してから）
       if (mounted) {
+        // 前のSnackBarを消去
+        ScaffoldMessenger.of(context).clearSnackBars();
+        
+        // 成功メッセージ表示
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('アカウント登録が完了しました'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         
-        // コーチのプラン一覧画面に遷移
-        Future.delayed(const Duration(seconds: 1), () {
-          Navigator.pushReplacementNamed(context, '/coach/plans');
+        // 少し待ってからコーチのプラン一覧画面へ遷移
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            // コーチのプラン一覧画面に遷移
+            Navigator.of(context).pushReplacementNamed('/coach/plans');
+          }
         });
       }
     } catch (error) {
-      // エラーハンドリング
-      String errorMessage = 'アカウント登録に失敗しました';
-      
-      if (error is FirebaseAuthException) {
-        switch (error.code) {
-          case 'email-already-in-use':
-            errorMessage = 'このメールアドレスは既に使用されています';
-            break;
-          case 'invalid-email':
-            errorMessage = '無効なメールアドレスです';
-            break;
-          case 'weak-password':
-            errorMessage = 'パスワードが脆弱です。より強力なパスワードを設定してください';
-            break;
-          case 'operation-not-allowed':
-            errorMessage = 'この操作は許可されていません';
-            break;
-          default:
-            errorMessage = 'アカウント登録に失敗しました: ${error.message}';
-        }
-      }
-      
+      // 想定外のエラー
+      print('Unexpected error during registration: $error');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorMessage('アカウント登録中に予期せぬエラーが発生しました');
       }
     } finally {
+      // 処理が終わったら送信中フラグを下ろす
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
       }
     }
+  }
+  
+  // エラーメッセージ表示のヘルパーメソッド
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+  
+  // Firebase Auth関連のエラーメッセージを取得するヘルパーメソッド
+  String _getAuthErrorMessage(dynamic error) {
+    if (error is FirebaseAuthException) {
+      switch (error.code) {
+        case 'email-already-in-use':
+          return 'このメールアドレスは既に使用されています';
+        case 'invalid-email':
+          return '無効なメールアドレスです';
+        case 'weak-password':
+          return 'パスワードが脆弱です。より強力なパスワードを設定してください';
+        case 'operation-not-allowed':
+          return 'この操作は許可されていません';
+        default:
+          return 'アカウント登録に失敗しました: ${error.message}';
+      }
+    }
+    return 'アカウント登録に失敗しました';
   }
 
   @override

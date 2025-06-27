@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 認証済みユーザーのみ読み書き可能な基本ルール
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // プランコレクション専用のルール
+    match /plans/{planId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if request.auth != null;
+      
+      // 認証済みユーザーは新規作成可能、coachIdが自分のuidと一致していること
+      allow create: if request.auth != null && 
+                    request.resource.data.coachId == request.auth.uid;
+      
+      // 更新は自分が作成したプランのみ（coachIdが自分のuidと一致）
+      allow update: if request.auth != null && 
+                    resource.data.coachId == request.auth.uid;
+      
+      // 削除は自分が作成したプランのみ
+      allow delete: if request.auth != null && 
+                    resource.data.coachId == request.auth.uid;
+    }
+    
+    // コーチ情報コレクション専用のルール
+    match /coaches/{coachId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if request.auth != null;
+      
+      // 自分のデータのみ作成・更新・削除可能
+      allow write: if request.auth != null && 
+                   coachId == request.auth.uid;
+    }
+  }
+}

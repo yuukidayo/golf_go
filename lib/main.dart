@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:golf_go/screens/coach/plan_list_screen.dart';
 import 'package:golf_go/screens/coach_registration_screen.dart';
 import 'package:golf_go/screens/golfer_registration_screen.dart';
@@ -31,11 +32,27 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
   
-  runApp(const MyApp());
+  // ログイン状態を確認し、適切な初期画面を選択
+  User? currentUser = FirebaseAuth.instance.currentUser;
+  String initialRoute = '/';
+  
+  if (currentUser != null) {
+    // ユーザーがログイン済みの場合はプラン一覧画面を表示
+    print('User already logged in: ${currentUser.uid}');
+    initialRoute = '/coach/plans';
+  } else {
+    print('No user logged in');
+    // ログインしていない場合はウェルカム画面を表示
+    initialRoute = '/';
+  }
+  
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+  
+  const MyApp({super.key, required this.initialRoute});
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +60,7 @@ class MyApp extends StatelessWidget {
       title: 'Golf Go',
       debugShowCheckedModeBanner: false, // デバッグバナーを非表示
       theme: AppTheme.luxuryTheme, // 高級感のある白ベースのテーマを適用
-      initialRoute: '/',
+      initialRoute: initialRoute, // ログイン状態に応じた初期ルート
       routes: {
         '/': (context) => const WelcomeScreen(),
         '/register': (context) => const RegisterScreen(),
