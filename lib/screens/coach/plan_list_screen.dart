@@ -211,28 +211,38 @@ class _PlanListScreenState extends State<PlanListScreen> {
                 pinned: true,
                 elevation: 0,
                 backgroundColor: Colors.white,
+                automaticallyImplyLeading: false,  // これが重要：戻るボタンを非表示にします
                 expandedHeight: 100,
                 flexibleSpace: FlexibleSpaceBar(
-                  title: const Text(
-                    'コーチプラン一覧',
-                    style: TextStyle(
-                      color: AppColors.luxuryText, 
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                  centerTitle: true,
+                  background: Container(
+                    color: Colors.white,
+                    child: const Center(
+                      child: Image(
+                        image: AssetImage('assets/images/logo.png'),
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
-                  centerTitle: false,
-                  titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-                  background: Container(color: Colors.white),
                 ),
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: AppColors.gold),
-                    onPressed: _navigateToCreatePlan,
-                    tooltip: '新しいプランを作成',
-                  ),
                   const SizedBox(width: 8),
                 ],
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
+                  child: Text(
+                    'プラン一覧',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.luxuryText,
+                    ),
+                  ),
+                ),
               ),
               if (_isLoading)
                 const SliverFillRemaining(

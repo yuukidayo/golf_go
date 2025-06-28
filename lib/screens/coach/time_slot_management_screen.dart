@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/plan.dart';
 import '../../models/time_slot.dart';
 import '../../theme/app_theme.dart';
+import 'time_slot_edit_screen.dart';
 
 class TimeSlotManagementScreen extends StatefulWidget {
   final Plan plan; // 予約枠を管理するプラン
@@ -19,13 +20,12 @@ class TimeSlotManagementScreen extends StatefulWidget {
 
 class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  List<TimeSlot> _timeSlots = [];
+  final _priceController = TextEditingController();
   
-  // 新規タイムスロット用コントローラー
-  final TextEditingController _priceController = TextEditingController();
-  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0); // デフォルト開始時間
-  TimeOfDay _endTime = const TimeOfDay(hour: 10, minute: 0); // デフォルト終了時間
+  List<TimeSlot> _timeSlots = [];
+  bool _isLoading = false;
+  TimeOfDay _startTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _endTime = const TimeOfDay(hour: 10, minute: 0);
   
   @override
   void initState() {
@@ -39,9 +39,29 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     super.dispose();
   }
   
-  // TimeOfDayを分単位に変換（比較用）
-  int _timeToMinutes(TimeOfDay time) {
-    return time.hour * 60 + time.minute;
+  // フォームをリセット
+  void _resetForm() {
+    setState(() {
+      _startTime = const TimeOfDay(hour: 9, minute: 0);
+      _endTime = const TimeOfDay(hour: 10, minute: 0);
+      _priceController.clear();
+      _isLoading = false;
+    });
+  }
+  
+  // 編集画面に遷移する
+  void _editTimeSlot(TimeSlot timeSlot) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => TimeSlotEditScreen(
+          timeSlot: timeSlot,
+          planId: widget.plan.id,
+          onUpdated: () {
+            _loadTimeSlots();
+          },
+        ),
+      ),
+    );
   }
   
   // 予約枠を読み込む
@@ -50,21 +70,11 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
       _isLoading = true;
     });
     
-    debugPrint('予約枠読み込み開始 - プランID: ${widget.plan.id}');
-    
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('time_slots')
           .where('planId', isEqualTo: widget.plan.id)
-          .get(); // orderByを一時的に削除して基本的なクエリだけで動作確認
-      
-      debugPrint('予約枠クエリ結果: ${snapshot.docs.length} 件のドキュメントを取得');
-      
-      // ドキュメントのデバッグ出力
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        debugPrint('取得したドキュメント - ID: ${doc.id}, データ: $data');
-      }
+          .get();
       
       setState(() {
         _timeSlots = snapshot.docs
@@ -74,8 +84,6 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
         // 手動でソート
         _timeSlots.sort((a, b) => a.startTime.compareTo(b.startTime));
       });
-      
-      debugPrint('予約枠の読み込み完了: ${_timeSlots.length} 件');
     } catch (e, stackTrace) {
       debugPrint('予約枠読み込みエラー: $e');
       debugPrint('スタックトレース: $stackTrace');
@@ -89,13 +97,33 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     }
   }
   
+  // 予約枠が時間的に重複しているかチェック
+  bool _isTimeSlotOverlapping(String newStartTime, String newEndTime) {
+    for (final timeSlot in _timeSlots) {
+      final existingStartMinutes = _timeStringToMinutes(timeSlot.startTime);
+      final existingEndMinutes = _timeStringToMinutes(timeSlot.endTime);
+      final newStartMinutes = _timeStringToMinutes(newStartTime);
+      final newEndMinutes = _timeStringToMinutes(newEndTime);
+      
+      if (newStartMinutes < existingEndMinutes && newEndMinutes > existingStartMinutes) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  // 時間文字列（HH:MM）を分単位の整数に変換
+  int _timeStringToMinutes(String timeStr) {
+    final parts = timeStr.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
   // 予約枠を追加
   Future<void> _addTimeSlot() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
     
-    // 金額をパース
     final priceText = _priceController.text.replaceAll(',', '').replaceAll('¥', '');
     final price = int.tryParse(priceText) ?? 0;
     
@@ -106,16 +134,25 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
       return;
     }
     
-    // 開始・終了時刻をフォーマット
     final startTimeStr = '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}';
     final endTimeStr = '${_endTime.hour.toString().padLeft(2, '0')}:${_endTime.minute.toString().padLeft(2, '0')}';
+    
+    if (_isTimeSlotOverlapping(startTimeStr, endTimeStr)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('他の予約枠と時間が重複しています。別の時間を選択してください。'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     
     setState(() {
       _isLoading = true;
     });
     
     try {
-      // Firestoreに保存
       final docRef = await FirebaseFirestore.instance.collection('time_slots').add({
         'planId': widget.plan.id,
         'startTime': startTimeStr,
@@ -125,7 +162,6 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
-      // UIに追加
       final newTimeSlot = TimeSlot(
         id: docRef.id,
         planId: widget.plan.id,
@@ -138,11 +174,9 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
       
       setState(() {
         _timeSlots.add(newTimeSlot);
-        // 開始時刻順にソート
         _timeSlots.sort((a, b) => a.startTime.compareTo(b.startTime));
       });
       
-      // フォームをクリア
       _priceController.clear();
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -186,13 +220,11 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     });
     
     try {
-      // Firestoreから削除
       await FirebaseFirestore.instance
           .collection('time_slots')
           .doc(timeSlot.id)
           .delete();
       
-      // UIから削除
       setState(() {
         _timeSlots.removeWhere((slot) => slot.id == timeSlot.id);
       });
@@ -234,7 +266,6 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
       setState(() {
         if (isStart) {
           _startTime = picked;
-          // 開始時刻が終了時刻より遅い場合、終了時刻を調整
           if (_timeToMinutes(_startTime) >= _timeToMinutes(_endTime)) {
             _endTime = TimeOfDay(
               hour: (_startTime.hour + 1) % 24,
@@ -242,7 +273,6 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
             );
           }
         } else {
-          // 終了時刻が開始時刻より早い場合は調整
           if (_timeToMinutes(picked) <= _timeToMinutes(_startTime)) {
             _endTime = TimeOfDay(
               hour: (_startTime.hour + 1) % 24,
@@ -256,13 +286,49 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     }
   }
   
+  int _timeToMinutes(TimeOfDay time) {
+    return time.hour * 60 + time.minute;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('予約枠管理 - ${widget.plan.title}'),
-        backgroundColor: AppColors.gold,
-        actions: [], // 右上のplusIconsを非表示にするため空のリストを設定
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+        title: Center(
+          child: Text(
+            '予約枠管理 - ${widget.plan.title}',
+            style: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: _isLoading ? null : _addTimeSlot,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              '追加', 
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+            ),
+          ),
+          const SizedBox(width: 16),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -275,6 +341,7 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
                   Card(
                     elevation: 2,
                     margin: const EdgeInsets.only(bottom: 16),
+                    color: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -377,20 +444,8 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
                             ),
                             const SizedBox(height: 16),
                             
-                            // 追加ボタン
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.gold,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                onPressed: _isLoading ? null : _addTimeSlot,
-                                child: const Text('予約枠を追加'),
-                              ),
-                            ),
+                            // ボタンを非表示に
+                            SizedBox(height: 16),
                           ],
                         ),
                       ),
@@ -432,9 +487,22 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
                                   '¥${timeSlot.price.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
                                   style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w500),
                                 ),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () => _deleteTimeSlot(timeSlot),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    // 編集ボタン
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      onPressed: () => _editTimeSlot(timeSlot),
+                                      tooltip: '編集',
+                                    ),
+                                    // 削除ボタン
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () => _deleteTimeSlot(timeSlot),
+                                      tooltip: '削除',
+                                    ),
+                                  ],
                                 ),
                               ),
                             );
