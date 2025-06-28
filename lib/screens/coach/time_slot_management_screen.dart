@@ -72,7 +72,7 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('time_slots')
+          .collection('timeSlots')
           .where('planId', isEqualTo: widget.plan.id)
           .get();
       
@@ -153,7 +153,7 @@ class _TimeSlotManagementScreenState extends State<TimeSlotManagementScreen> {
     });
     
     try {
-      final docRef = await FirebaseFirestore.instance.collection('time_slots').add({
+      final docRef = await FirebaseFirestore.instance.collection('timeSlots').add({
         'planId': widget.plan.id,
         'startTime': startTimeStr,
         'endTime': endTimeStr,

@@ -42,7 +42,6 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
     _selectedDay = _focusedDay;
     _isCalendarView = false; // 明示的にリスト表示に設定
     _loadUpcomingReservations(); // リスト表示用の直近予約を読み込む
-    print('初期表示モード: ${_isCalendarView ? "カレンダー表示" : "リスト表示"}');
   }
 
   // 月の予約データを読み込む - カレンダーのイベントマーカー用
@@ -331,7 +330,6 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
             onPressed: () {
               setState(() {
                 _isCalendarView = !_isCalendarView;
-                print('表示切替: ${_isCalendarView ? "カレンダー表示" : "リスト表示"}'); // デバッグログ
               });
             },
           ),
@@ -344,17 +342,6 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
           : _isCalendarView
               ? _buildCalendarView()
               : _buildUpcomingReservationsView(japaneseFormatter, currencyFormatter),
-      // デバッグ情報（開発中のみ）
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          setState(() {
-            _isCalendarView = !_isCalendarView;
-            print('FAB表示切替: ${_isCalendarView ? "カレンダー表示" : "リスト表示"}');
-          });
-        },
-        backgroundColor: AppColors.gold,
-        child: Icon(_isCalendarView ? Icons.list : Icons.calendar_month),
-      ),  // 表示切替用の別のボタン（開発中のみ）
     );
   }
 
@@ -607,35 +594,6 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
           : _isCalendarView
               ? _buildCalendarView()
               : _buildUpcomingReservationsView(japaneseFormatter, currencyFormatter),
-      // 同じナビゲーションメニューを実装
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1, // 予約管理タブ選択
-        onTap: (_) {
-          // タブのタップは親画面(CoachMainScreen)で処理するため何もしない
-        },
-        selectedItemColor: AppColors.gold,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        type: BottomNavigationBarType.fixed,
-        elevation: 8,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.view_list_outlined),
-            activeIcon: Icon(Icons.view_list),
-            label: 'プラン管理',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            activeIcon: Icon(Icons.calendar_month),
-            label: '予約管理',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined),
-            activeIcon: Icon(Icons.account_circle),
-            label: 'マイページ',
-          ),
-        ],
-      ),
     );
   }
 }

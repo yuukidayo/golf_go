@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
+import '../../utils/test_data_helper.dart';
 import '../../models/plan.dart';
 import '../../models/time_slot.dart';
 import '../../theme/app_theme.dart';
@@ -225,41 +226,101 @@ class _PlanListScreenState extends State<PlanListScreen> {
     });
     
     try {
-      // TODO: Firestoreから月全体の予約データを取得する実装
-      // この部分は次のステップで実装
+      // 現在ログインしているコーチのIDを取得
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('ログインされていません');
+      }
+      final coachId = currentUser.uid;
       
-      // 仮データを設定（開発中のみ）
-      await Future.delayed(const Duration(milliseconds: 500));
+      print('📅 月間予約データを読み込み中: ${month.year}年${month.month}月, コーチID: $coachId');
       
-      // 仮データでいくつかの日に予約を設定
-      final Map<DateTime, List<TimeSlot>> mockEvents = {};
+      // 月の期間情報（将来的なフィルタリングのために保持）
+      final DateTime monthStart = DateTime(month.year, month.month, 1);
+      final DateTime monthEnd = DateTime(month.year, month.month + 1, 0);
+      debugPrint('📅 対象期間: ${monthStart.toString().substring(0, 10)} ~ ${monthEnd.toString().substring(0, 10)}');
       
-      // 複数の日に予約を追加（開発用サンプル）
-      final DateTime lastDay = DateTime(month.year, month.month + 1, 0);
-      for (int i = 5; i < 28; i += 4) {
-        if (i <= lastDay.day) {
-          final eventDate = DateTime(month.year, month.month, i);
-          mockEvents[eventDate] = [
-            TimeSlot(
-              id: 'event$i-1',
-              planId: 'plan1',
-              startTime: '10:00',
-              endTime: '11:00',
-              price: 5000,
-            ),
-            TimeSlot(
-              id: 'event$i-2',
-              planId: 'plan2',
-              startTime: '14:00',
-              endTime: '15:30',
-              price: 7500,
-            ),
-          ];
+      // 現在のコーチに関連する予約を取得するための2ステップクエリ
+      
+      // 1. コーチのプランIDを取得
+      final plansSnapshot = await FirebaseFirestore.instance
+          .collection('plans')
+          .where('coachId', isEqualTo: coachId)
+          .get();
+      
+      final planIds = plansSnapshot.docs.map((doc) => doc.id).toList();
+      
+      if (planIds.isEmpty) {
+        print('❌ このコーチに関連するプランが見つかりません');
+        setState(() {
+          _eventsByDay = {};
+          _loadSelectedDayEvents();
+          _isReservationLoading = false;
+        });
+        return;
+      }
+      
+      print('📋 見つかったプラン: ${planIds.length}件');
+      
+      // 2. プランに関連する予約枠を取得
+      final timeSlotsSnapshot = await FirebaseFirestore.instance
+          .collection('timeSlots')
+          .where('planId', whereIn: planIds)
+          .get();
+      
+      final timeSlotIds = timeSlotsSnapshot.docs.map((doc) => doc.id).toList();
+      
+      if (timeSlotIds.isEmpty) {
+        print('❌ このコーチのプランに関連する予約枠が見つかりません');
+        setState(() {
+          _eventsByDay = {};
+          _loadSelectedDayEvents();
+          _isReservationLoading = false;
+        });
+        return;
+      }
+      
+      print('🕒 見つかった予約枠: ${timeSlotIds.length}件');
+      
+      // 3. 予約枠に関連する予約データを取得
+      final reservationsSnapshot = await FirebaseFirestore.instance
+          .collection('reservations')
+          .where('timeSlotId', whereIn: timeSlotIds)
+          .get();
+      
+      print('🎫 見つかった予約: ${reservationsSnapshot.docs.length}件');
+      
+      // 予約データと予約枠データを結合
+      final Map<String, TimeSlot> timeSlotMap = {};
+      for (final doc in timeSlotsSnapshot.docs) {
+        final timeSlot = TimeSlot.fromFirestore(doc);
+        timeSlotMap[timeSlot.id] = timeSlot;
+      }
+      
+      // 日付ごとに予約データをグループ化
+      final Map<DateTime, List<TimeSlot>> eventsByDay = {};
+      
+      for (final doc in reservationsSnapshot.docs) {
+        final reservationData = doc.data();
+        final timeSlotId = reservationData['timeSlotId'] as String;
+        final reservationDate = (reservationData['date'] as Timestamp).toDate();
+        
+        // 指定した月の予約のみをフィルタリング
+        if (reservationDate.year == month.year && reservationDate.month == month.month) {
+          // 日付のみの DateTime オブジェクトを作成（時間は 0:00:00）
+          final eventDate = DateTime(reservationDate.year, reservationDate.month, reservationDate.day);
+          
+          // その予約に関連する予約枠情報を取得
+          final timeSlot = timeSlotMap[timeSlotId];
+          if (timeSlot != null) {
+            // まだその日のリストがなければ作成
+            eventsByDay[eventDate] = [...(eventsByDay[eventDate] ?? []), timeSlot];
+          }
         }
       }
       
       setState(() {
-        _eventsByDay = mockEvents;
+        _eventsByDay = eventsByDay;
         _loadSelectedDayEvents();
       });
       
@@ -360,7 +421,7 @@ class _PlanListScreenState extends State<PlanListScreen> {
                 color: Colors.white,
                 child: const Center(
                   child: Image(
-                    image: AssetImage('assets/images/logo.png'),
+                    image: AssetImage('assets/images/ゴルフGOロゴ_背景透過.png'),
                     width: 100,
                     height: 100,
                     fit: BoxFit.contain,
@@ -469,6 +530,20 @@ class _PlanListScreenState extends State<PlanListScreen> {
   Widget _buildReservationCalendar() {
     return Column(
       children: [
+        // テストデータ作成ボタン（開発用）
+        if (!kReleaseMode)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.add_task),
+              label: const Text('テスト予約データを作成'),
+              onPressed: _createTestReservations,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
         // カレンダー部分
         Card(
           margin: const EdgeInsets.all(8.0),
@@ -601,5 +676,60 @@ class _PlanListScreenState extends State<PlanListScreen> {
         ),
       ],
     );
+  }
+
+  // テスト用の予約データを作成するメソッド
+  Future<void> _createTestReservations() async {
+    try {
+      print('🚀 テストデータ作成開始');
+      // UI更新のため読み込み状態を更新
+      setState(() {
+        _isLoading = true;
+      });
+
+      print('🔍 Firebase接続確認中...');
+      // Firebase初期化を確認
+      final isInitialized = await TestDataHelper.ensureFirebaseInitialized();
+      if (!isInitialized) {
+        throw Exception('Firebase初期化に失敗しました');
+      }
+      
+      // テストデータを作成
+      print('📝 TestDataHelper.createTestReservationsを呼び出し中...');
+      final createdIds = await TestDataHelper.createTestReservations();
+      print('✅ テストデータ作成完了: ${createdIds.length}件');
+
+      // 成功メッセージを表示
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${createdIds.length}件のテスト予約を作成しました'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: '確認',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+    } catch (e) {
+      // エラーメッセージを表示
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('テスト予約の作成に失敗しました: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      // 読み込み状態を元に戻す
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 }

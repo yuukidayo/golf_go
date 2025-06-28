@@ -137,7 +137,7 @@ class _TimeSlotEditScreenState extends State<TimeSlotEditScreen> {
     
     try {
       // Firestoreを更新
-      await FirebaseFirestore.instance.collection('time_slots').doc(widget.timeSlot.id).update({
+      await FirebaseFirestore.instance.collection('timeSlots').doc(widget.timeSlot.id).update({
         'startTime': startTimeStr,
         'endTime': endTimeStr,
         'price': price,
