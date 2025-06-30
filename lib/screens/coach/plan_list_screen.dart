@@ -1,12 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:table_calendar/table_calendar.dart';
-import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../../models/plan.dart';
-import '../../models/time_slot.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/test_data_helper.dart';
 import '../../widgets/coach/plan_card.dart';
 import 'plan_create_screen.dart';
 import 'time_slot_management_screen.dart';
@@ -19,55 +17,35 @@ class PlanListScreen extends StatefulWidget {
 }
 
 class _PlanListScreenState extends State<PlanListScreen> {
-  // タブ管理
-  int _currentIndex = 0; // 0: プラン管理, 1: 予約管理
-  
-  // プラン管理関連
+  // プラン管理関連の状態管理
   bool _isLoading = true;
   String? _errorMessage;
   List<Plan> _plans = [];
   User? _currentUser;
   
-  // 予約管理関連
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
-  CalendarFormat _calendarFormat = CalendarFormat.month;
-  bool _isReservationLoading = false;
-  List<TimeSlot> _reservations = [];
-  Map<DateTime, List<TimeSlot>> _eventsByDay = {};
-
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
     _loadPlans();
-    _selectedDay = _focusedDay;
-    _loadMonthEvents(_focusedDay);
   }
 
   // 現在ログインしているユーザーを取得
-  // 登録直後の遷移の場合に対応するためにリトライ処理を追加
   Future<void> _loadCurrentUser() async {
     print('Checking current user authentication state...');
     
-    // 最初のチェック
     _currentUser = FirebaseAuth.instance.currentUser;
     
-    // 遅延読み込みやFirebase認証状態の同期対応のために少し待つ
+    // 遅延読み込み対応のため少し待つ
     if (_currentUser == null) {
-      print('User not found on first check, waiting for auth state to sync');
-      // 認証状態が同期されるまで少し待つ
       await Future.delayed(const Duration(milliseconds: 500));
       _currentUser = FirebaseAuth.instance.currentUser;
-      print('After delay, currentUser: ${_currentUser?.uid}');
     }
     
-    // UI更新
     setState(() {});
     
-    // ユーザーがまだログインしていない場合のみウェルカム画面に戻る
+    // ユーザーがログインしていない場合
     if (_currentUser == null) {
-      print('User still not logged in after retry, redirecting to welcome screen');
       if (!mounted) return;
       
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,15 +55,14 @@ class _PlanListScreenState extends State<PlanListScreen> {
         ),
       );
       
-      // 少し待ってから遷移する
+      // ウェルカム画面に戻る
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted && FirebaseAuth.instance.currentUser == null) {
           Navigator.of(context).pushReplacementNamed('/');
         }
       });
     } else {
-      print('User authenticated: ${_currentUser?.uid}');
-      // ユーザーが認証済みであることを確認した後でプランを読み込む
+      // ユーザーが認証済みならプランを読み込む
       _loadPlans();
     }
   }
@@ -137,13 +114,11 @@ class _PlanListScreenState extends State<PlanListScreen> {
 
   // プラン新規作成画面に遷移
   Future<void> _navigateToCreatePlan() async {
-    // 画面遷移し、戻ってきたら再読み込みを行う
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const PlanCreateScreen()),
     );
     
-    // 画面から戻ってきたらプラン一覧を再読み込み
     if (result == true) {
       _loadPlans();
     }
@@ -177,6 +152,13 @@ class _PlanListScreenState extends State<PlanListScreen> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('プランを削除'),
+                onTap: () {
+                  Navigator.pop(context, 'delete');
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.close, color: Colors.grey),
                 title: const Text('キャンセル'),
                 onTap: () {
@@ -195,7 +177,6 @@ class _PlanListScreenState extends State<PlanListScreen> {
           MaterialPageRoute(builder: (context) => PlanCreateScreen(plan: plan)),
         );
         
-        // 画面から戻ってきたらプラン一覧を再読み込み
         if (result == true) {
           _loadPlans();
         }
@@ -206,399 +187,231 @@ class _PlanListScreenState extends State<PlanListScreen> {
           MaterialPageRoute(builder: (context) => TimeSlotManagementScreen(plan: plan)),
         );
         
-        // 画面から戻ってきたらプラン一覧を再読み込み
         if (result == true) {
           _loadPlans();
         }
+      } else if (value == 'delete') {
+        // プラン削除の確認ダイアログを表示
+        _showDeleteConfirmationDialog(plan);
       }
     });
   }
-
-  List<TimeSlot> _getEventsForDay(DateTime day) {
-    final normalizedDate = DateTime(day.year, day.month, day.day);
-    return _eventsByDay[normalizedDate] ?? [];
-  }
-
-  Future<void> _loadMonthEvents(DateTime month) async {
-    setState(() {
-      _isReservationLoading = true;
-    });
+  
+  // プラン削除の確認ダイアログ
+  Future<void> _showDeleteConfirmationDialog(Plan plan) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('プラン削除の確認'),
+        content: Text('「${plan.title}」を削除してもよろしいですか？\n\n※予約枠や予約データも全て削除されます。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('削除する'),
+          ),
+        ],
+      ),
+    ) ?? false;
     
+    if (confirmed && mounted) {
+      await _deletePlan(plan);
+    }
+  }
+  
+  // プラン削除処理
+  Future<void> _deletePlan(Plan plan) async {
     try {
-      // TODO: Firestoreから月全体の予約データを取得する実装
-      // この部分は次のステップで実装
-      
-      // 仮データを設定（開発中のみ）
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // 仮データでいくつかの日に予約を設定
-      final Map<DateTime, List<TimeSlot>> mockEvents = {};
-      
-      // 複数の日に予約を追加（開発用サンプル）
-      final DateTime lastDay = DateTime(month.year, month.month + 1, 0);
-      for (int i = 5; i < 28; i += 4) {
-        if (i <= lastDay.day) {
-          final eventDate = DateTime(month.year, month.month, i);
-          mockEvents[eventDate] = [
-            TimeSlot(
-              id: 'event$i-1',
-              planId: 'plan1',
-              startTime: '10:00',
-              endTime: '11:00',
-              price: 5000,
-            ),
-            TimeSlot(
-              id: 'event$i-2',
-              planId: 'plan2',
-              startTime: '14:00',
-              endTime: '15:30',
-              price: 7500,
-            ),
-          ];
-        }
-      }
-      
       setState(() {
-        _eventsByDay = mockEvents;
-        _loadSelectedDayEvents();
+        _isLoading = true;
       });
       
-    } catch (e) {
-      debugPrint('月間予約データ読み込みエラー: $e');
+      // プランを論理削除（isActive = false）に更新
+      await FirebaseFirestore.instance
+          .collection('plans')
+          .doc(plan.id)
+          .update({'isActive': false});
+      
+      // 一覧を再読み込み
+      _loadPlans();
+      
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('予約データの読み込みに失敗しました: $e')),
+        const SnackBar(
+          content: Text('プランを削除しました'),
+          backgroundColor: Colors.green,
+        ),
       );
-    } finally {
+    } catch (e) {
       setState(() {
-        _isReservationLoading = false;
+        _isLoading = false;
       });
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('プラン削除に失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
-  void _loadSelectedDayEvents() {
-    if (_selectedDay != null) {
-      final selectedDate = DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day);
+  // テスト用の予約データを作成するメソッド
+  Future<void> _createTestReservations() async {
+    try {
       setState(() {
-        _reservations = _eventsByDay[selectedDate] ?? [];
+        _isLoading = true;
       });
+
+      // Firebase初期化を確認
+      final isInitialized = await TestDataHelper.ensureFirebaseInitialized();
+      if (!isInitialized) {
+        throw Exception('Firebase初期化に失敗しました');
+      }
+      
+      // テストデータを作成
+      final createdIds = await TestDataHelper.createTestReservations();
+
+      // 成功メッセージを表示
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${createdIds.length}件のテスト予約を作成しました'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      // エラーメッセージを表示
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('テスト予約の作成に失敗しました: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      // 読み込み状態を元に戻す
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false, // 戻るボタンを無効化
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: _currentIndex == 0 
-            ? _buildPlanManagement() // プラン管理画面
-            : _buildReservationCalendar(), // 予約管理画面
-        ),
-        floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
-          backgroundColor: AppColors.gold,
-          child: const Icon(Icons.add, color: Colors.white),
-          onPressed: _navigateToCreatePlan,
-          tooltip: '新しいプランを作成',
-        ) : null,
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            if (index == 2) {
-              // マイページ（準備中）
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('マイページは準備中です')),
-              );
-            } else {
-              setState(() {
-                _currentIndex = index;
-              });
-            }
-          },
-          selectedItemColor: AppColors.gold,
-          unselectedItemColor: Colors.grey,
-          backgroundColor: Colors.white,
-          type: BottomNavigationBarType.fixed,
-          elevation: 8,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.view_list_outlined),
-              activeIcon: Icon(Icons.view_list),
-              label: 'プラン管理',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_month_outlined),
-              activeIcon: Icon(Icons.calendar_month),
-              label: '予約管理',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_circle_outlined),
-              activeIcon: Icon(Icons.account_circle),
-              label: 'マイページ',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-  
-  // プラン管理画面のビルド
-  Widget _buildPlanManagement() {
-    return RefreshIndicator(
-      onRefresh: _loadPlans,
-      child: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            automaticallyImplyLeading: false,  // これが重要：戻るボタンを非表示にします
-            expandedHeight: 100,
-            flexibleSpace: FlexibleSpaceBar(
-              centerTitle: true,
-              background: Container(
-                color: Colors.white,
-                child: const Center(
-                  child: Image(
-                    image: AssetImage('assets/images/logo.png'),
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.contain,
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              SizedBox(width: 8),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8),
-              child: Text(
-                'プラン一覧',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.luxuryText,
-                ),
-              ),
-            ),
-          ),
-          if (_isLoading)
-            SliverFillRemaining(
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.gold),
-              ),
-            )
-          else if (_errorMessage != null)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
-                    SizedBox(height: 16),
-                    Text(
-                      _errorMessage!,
-                      style: TextStyle(color: Colors.red.shade700),
-                    ),
-                    SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _loadPlans,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                      ),
-                      child: Text('再読み込み'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_plans.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.golf_course, size: 48, color: Colors.grey.shade300),
-                    SizedBox(height: 16),
-                    Text(
-                      'まだプランがありません',
-                      style: TextStyle(color: Colors.grey.shade700),
-                    ),
-                    SizedBox(height: 8),
-                    Text('新しいプランを作成しましょう'),
-                    SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: _navigateToCreatePlan,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      icon: Icon(Icons.add),
-                      label: Text('プランを作成'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: EdgeInsets.only(bottom: 80), // Bottom navigationのため
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final plan = _plans[index];
-                    return PlanCard(
-                      key: ValueKey(plan.id),
-                      plan: plan,
-                      onTap: () => _navigateToPlanEdit(plan),
-                    );
-                  },
-                  childCount: _plans.length,
-                ),
-              ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('プラン管理'),
+        actions: [
+          // テスト予約作成ボタン（開発用）
+          if (kDebugMode)
+            IconButton(
+              icon: const Icon(Icons.bug_report),
+              onPressed: _createTestReservations,
+              tooltip: 'テスト予約を作成',
             ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _navigateToCreatePlan,
+        backgroundColor: AppColors.gold,
+        child: const Icon(Icons.add),
+      ),
+      body: _buildPlanManagement(),
     );
   }
 
-  // 予約管理画面のビルド
-  Widget _buildReservationCalendar() {
-    return Column(
-      children: [
-        // カレンダー部分
-        Card(
-          margin: const EdgeInsets.all(8.0),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TableCalendar<TimeSlot>(
-              firstDay: DateTime.utc(2023, 1, 1),
-              lastDay: DateTime.utc(2030, 12, 31),
-              focusedDay: _focusedDay,
-              calendarFormat: _calendarFormat,
-              eventLoader: _getEventsForDay,
-              selectedDayPredicate: (day) {
-                return isSameDay(_selectedDay, day);
-              },
-              onDaySelected: (selectedDay, focusedDay) {
-                setState(() {
-                  _selectedDay = selectedDay;
-                  _focusedDay = focusedDay;
-                  _loadSelectedDayEvents();
-                });
-              },
-              onFormatChanged: (format) {
-                setState(() {
-                  _calendarFormat = format;
-                });
-              },
-              onPageChanged: (focusedDay) {
-                _focusedDay = focusedDay;
-                _loadMonthEvents(focusedDay);
-              },
-              calendarStyle: const CalendarStyle(
-                markersMaxCount: 3,
-                markersAlignment: Alignment.bottomCenter,
-                markerDecoration: BoxDecoration(
-                  color: AppColors.gold,
-                  shape: BoxShape.circle,
-                ),
-                todayDecoration: BoxDecoration(
-                  color: Color(0xFFDEB887), // 薄い金色
-                  shape: BoxShape.circle,
-                ),
-                selectedDecoration: BoxDecoration(
-                  color: AppColors.gold,
-                  shape: BoxShape.circle,
-                ),
+  // プラン管理画面を構築
+  Widget _buildPlanManagement() {
+    return CustomScrollView(
+      slivers: <Widget>[
+        // エラー表示
+        if (_errorMessage != null)
+          SliverFillRemaining(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _loadPlans,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                    ),
+                    child: const Text('再読み込み'),
+                  ),
+                ],
               ),
-              headerStyle: HeaderStyle(
-                formatButtonVisible: true,
-                titleCentered: true,
-                formatButtonShowsNext: false,
-                formatButtonDecoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12.0),
-                  border: Border.all(color: AppColors.gold),
-                ),
-                formatButtonTextStyle: const TextStyle(color: AppColors.gold),
-                titleTextStyle: const TextStyle(
-                  fontSize: 18, 
-                  fontWeight: FontWeight.bold
-                ),
-                headerPadding: const EdgeInsets.symmetric(vertical: 4.0),
-                leftChevronIcon: const Icon(Icons.chevron_left, color: AppColors.gold),
-                rightChevronIcon: const Icon(Icons.chevron_right, color: AppColors.gold),
-                headerMargin: const EdgeInsets.only(bottom: 8.0),
-                titleTextFormatter: (date, locale) {
-                  return '${date.year}年${date.month}月';
+            ),
+          )
+        // ローディング表示
+        else if (_isLoading)
+          const SliverFillRemaining(
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.gold),
+            ),
+          )
+        // プランがない場合
+        else if (_plans.isEmpty)
+          SliverFillRemaining(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.golf_course, size: 48, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text(
+                    'まだプランがありません',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('新しいプランを作成しましょう'),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: _navigateToCreatePlan,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.add),
+                    label: const Text('プランを作成'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        // プラン一覧
+        else
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 80), // Bottom navigationのため
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final plan = _plans[index];
+                  return PlanCard(
+                    key: ValueKey(plan.id),
+                    plan: plan,
+                    onTap: () => _navigateToPlanEdit(plan),
+                  );
                 },
+                childCount: _plans.length,
               ),
             ),
           ),
-        ),
-        
-        const SizedBox(height: 16),
-        
-        // 選択日の表示
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '${DateFormat('yyyy年MM月dd日').format(_selectedDay ?? _focusedDay)} の予約',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 8),
-        
-        // 予約一覧
-        Expanded(
-          child: _isReservationLoading 
-            ? const Center(child: CircularProgressIndicator())
-            : _reservations.isEmpty
-              ? const Center(child: Text('この日の予約はありません'))
-              : ListView.builder(
-                  itemCount: _reservations.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemBuilder: (context, index) {
-                    final reservation = _reservations[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: ListTile(
-                        title: Text(
-                          '${reservation.startTime} 〜 ${reservation.endTime}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          '¥${reservation.price.toString().replaceAllMapped(
-                            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
-                            (Match m) => '${m[1]},'
-                          )}',
-                          style: const TextStyle(
-                            color: AppColors.gold, 
-                            fontWeight: FontWeight.w500
-                          ),
-                        ),
-                        trailing: const Icon(Icons.info_outline),
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('予約詳細表示機能は次のステップで実装します')),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
-        ),
       ],
     );
   }
