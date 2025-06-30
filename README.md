@@ -113,3 +113,28 @@ docs/
 ## 設計仕様
 
 詳細な設計仕様は `docs/spec.md` に記載されています。
+
+## CI/CD セットアップ
+
+Continuous Integration（CI）およびContinuous Delivery（CD）の設定は以下の通りです。
+
+### CI スクリプト
+
+プロジェクトには自動化用のCIスクリプトがあります：
+
+```
+ci_scripts/
+├── ci_post_clone.sh  # クローン後に実行されるスクリプト
+└── README.md         # CI設定のドキュメント
+```
+
+### Xcode Cloud との統合
+
+Xcode Cloudを使用したCI/CD設定：
+
+1. **自動セットアップ**: リポジトリに `ci_scripts/ci_post_clone.sh` が含まれているため、Xcode Cloudは自動的にこのスクリプトを実行します
+2. **スクリプトの役割**:
+   - Flutterのセットアップと依存関係のインストール
+   - iOS用のCocoaPodsセットアップとインストール
+
+カスタム設定については `ci_scripts/README.md` を参照してください。
