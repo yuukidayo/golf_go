@@ -17,7 +17,7 @@ class PlanListScreen extends StatefulWidget {
   State<PlanListScreen> createState() => _PlanListScreenState();
 }
 
-class _PlanListScreenState extends State<PlanListScreen> {
+class _PlanListScreenState extends State<PlanListScreen> with SingleTickerProviderStateMixin {
   // プラン管理関連の状態管理
   bool _isLoading = true;
   String? _errorMessage;
@@ -27,6 +27,9 @@ class _PlanListScreenState extends State<PlanListScreen> {
   // カレンダー/リスト表示モード切替用の変数
   bool _isCalendarView = false;
   
+  // アニメーション用コントローラー
+  late AnimationController _animationController;
+  
   // ナビゲーション関連
   int _currentIndex = 0;
   late final List<Widget> _screens;
@@ -34,12 +37,25 @@ class _PlanListScreenState extends State<PlanListScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // アニメーションコントローラーの初期化
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 450),
+      vsync: this,
+    );
+    
     _screens = [
       Container(), // プラン管理画面は現在の画面なので空のコンテナ
       _buildReservationCalendarScreen(), // 予約管理画面をビルダー関数で生成
     ];
     _loadCurrentUser();
     _loadPlans();
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose(); // アニメーションコントローラーを破棄
+    super.dispose();
   }
   
   // 予約管理画面を構築するメソッド
@@ -337,23 +353,6 @@ class _PlanListScreenState extends State<PlanListScreen> {
         automaticallyImplyLeading: false, // 戻るボタンを非表示
         title: Text(_currentIndex == 0 ? 'プラン管理' : '予約管理'),
         actions: [
-          // 予約管理画面の場合はカレンダー/リスト切替アイコンを表示
-          if (_currentIndex == 1)
-            IconButton(
-              icon: Icon(
-                _isCalendarView ? Icons.list : Icons.calendar_month,
-                color: AppColors.gold,
-                size: 28,
-              ),
-              tooltip: _isCalendarView ? 'リスト表示に切替' : 'カレンダー表示に切替',
-              onPressed: () {
-                setState(() {
-                  _isCalendarView = !_isCalendarView;
-                  // _screensを再構築して新しい表示モードをReservationCalendarScreenに伝える
-                  _screens[1] = _buildReservationCalendarScreen();
-                });
-              },
-            ),
           // テスト予約作成ボタン（開発用）
           if (kDebugMode && _currentIndex == 0)
             IconButton(

@@ -22,9 +22,12 @@ class ReservationCalendarScreen extends StatefulWidget {
   State<ReservationCalendarScreen> createState() => _ReservationCalendarScreenState();
 }
 
-class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
+class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> with SingleTickerProviderStateMixin {
   // 表示モード
-  bool _isCalendarView = false; // デフォルトはリスト表示
+  late bool _isCalendarView; // 親から渡される初期値で初期化
+  
+  // アニメーション用コントローラー
+  late AnimationController _animationController;
   
   // カレンダー関連
   DateTime _focusedDay = DateTime.now();
@@ -50,6 +53,18 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
     super.initState();
     _selectedDay = _focusedDay;
     _isCalendarView = widget.initialCalendarView; // 親から渡された初期表示モードを使用
+    
+    // アニメーションコントローラーの初期化
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 450),
+      vsync: this,
+    );
+    
+    // 初期状態に合わせてアニメーションの位置を設定
+    if (_isCalendarView) {
+      _animationController.value = 1.0;
+    }
+    
     _loadUpcomingReservations(); // リスト表示用の直近予約を読み込む
   }
 
@@ -316,15 +331,30 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
     // アプリバーを表示するかどうかをウィジェットから取得
     final showAppBar = widget.showAppBar;
     
-    // カレンダー/リスト切替アイコン
+    // カレンダー/リスト切替アイコン（アニメーション付き）
     final switchViewButton = IconButton(
-      icon: Icon(
-        _isCalendarView ? Icons.list : Icons.calendar_month,
-        color: AppColors.gold,
-        size: 28,
+      icon: AnimatedBuilder(
+        animation: _animationController,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _animationController.value * 0.5 * 3.14159,
+            child: Icon(
+              _isCalendarView ? Icons.list : Icons.calendar_month,
+              color: AppColors.gold,
+              size: 28,
+            ),
+          );
+        },
       ),
       tooltip: _isCalendarView ? 'リスト表示に切替' : 'カレンダー表示に切替',
       onPressed: () {
+        // アニメーション実行
+        if (_isCalendarView) {
+          _animationController.forward(from: 0.0);
+        } else {
+          _animationController.reverse(from: 1.0);
+        }
+        
         setState(() {
           _isCalendarView = !_isCalendarView;
           // 親コンポーネントに表示モードの変更を通知
@@ -334,7 +364,6 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
     );
     
     return Scaffold(
-      // AppBarを条件付きで表示
       appBar: showAppBar ? AppBar(
         automaticallyImplyLeading: false,
         centerTitle: true,
@@ -346,32 +375,69 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
           const SizedBox(width: 12),
         ],
       ) : null,
-      // AppBarを表示しない場合、ビュー切替ボタンをbodyの上部に配置
-      floatingActionButtonLocation: showAppBar ? null : FloatingActionButtonLocation.endTop,
-      floatingActionButton: showAppBar ? null : Padding(
-        padding: const EdgeInsets.only(top: 12, right: 8),
-        child: FloatingActionButton(
-          elevation: 2,
-          backgroundColor: Colors.white,
-          mini: true,
-          child: Icon(
-            _isCalendarView ? Icons.list : Icons.calendar_month,
-            color: AppColors.gold,
+      body: Column(
+        children: [
+          // AppBarを表示しない場合のみ切り替えボタンを表示
+          if (!showAppBar)
+            Padding(
+              padding: const EdgeInsets.only(top: 10.0),
+              child: Center(
+                child: ElevatedButton.icon(
+                  icon: Icon(
+                    _isCalendarView ? Icons.list : Icons.calendar_month,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  label: Text(
+                    _isCalendarView ? 'リスト表示' : 'カレンダー表示',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: Colors.white,
+                    elevation: 2,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  onPressed: () {
+                    // アニメーション実行
+                    if (_isCalendarView) {
+                      _animationController.forward(from: 0.0);
+                    } else {
+                      _animationController.reverse(from: 1.0);
+                    }
+                    
+                    setState(() {
+                      _isCalendarView = !_isCalendarView;
+                      // 親コンポーネントに表示モードの変更を通知
+                      widget.onViewModeChanged?.call(_isCalendarView);
+                    });
+                  },
+                ),
+              ),
+            ),
+          // メインコンテンツ
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+                  : _isCalendarView
+                      ? _buildCalendarView()
+                      : _buildUpcomingReservationsView(japaneseFormatter, currencyFormatter),
+            ),
           ),
-          onPressed: () {
-            setState(() {
-              _isCalendarView = !_isCalendarView;
-              // 親コンポーネントに表示モードの変更を通知
-              widget.onViewModeChanged?.call(_isCalendarView);
-            });
-          },
-        ),
+        ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
-          : _isCalendarView
-              ? _buildCalendarView()
-              : _buildUpcomingReservationsView(japaneseFormatter, currencyFormatter),
     );
   }
 
