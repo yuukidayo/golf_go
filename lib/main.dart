@@ -5,6 +5,7 @@ import 'package:golf_go/screens/coach/plan_list_screen.dart';
 import 'package:golf_go/screens/coach_registration_screen.dart';
 import 'package:golf_go/screens/golfer/golfer_main_screen.dart';
 import 'package:golf_go/screens/golfer_registration_screen.dart';
+import 'package:golf_go/screens/login_screen.dart';
 import 'package:golf_go/screens/register_screen.dart';
 import 'package:golf_go/screens/welcome_screen.dart';
 import 'package:golf_go/services/auth_service.dart';
@@ -83,7 +84,7 @@ class MyApp extends StatelessWidget {
         '/register/golfer': (context) => const GolferRegistrationScreen(), // レッスン受講者登録画面
         '/coach/plans': (context) => const PlanListScreen(), // コーチ用メイン画面
         '/golfer/home': (context) => const GolferMainScreen(), // ゴルファー用メイン画面
-        '/login': (context) => const RegisterScreen(), // 一時的に登録画面を使用 (後で修正)
+        '/login': (context) => const LoginScreen(), // ログイン画面
       },
     );
   }

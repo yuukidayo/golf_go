@@ -14,6 +14,48 @@ class AuthService {
   // 現在のユーザーを取得
   User? get currentUser => _auth.currentUser;
   
+  // メールアドレスとパスワードでサインイン
+  Future<UserCredential> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      print('Attempting to sign in with email: $email');
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      print('Sign in successful: ${credential.user?.uid}');
+      return credential;
+    } catch (e) {
+      print('Error signing in: $e');
+      throw e; // エラーを再スローして、UIレイヤーで処理できるようにする
+    }
+  }
+  
+  // メールアドレスとパスワードで新規登録
+  Future<UserCredential> registerWithEmailAndPassword(String email, String password) async {
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return credential;
+    } catch (e) {
+      print('Error registering: $e');
+      throw e;
+    }
+  }
+  
+  // Googleでサインイン（実装予定）
+  Future<void> signInWithGoogle() async {
+    // TODO: Googleサインイン機能の実装
+    throw UnimplementedError('Google sign in not implemented yet');
+  }
+  
+  // Appleでサインイン（実装予定）
+  Future<void> signInWithApple() async {
+    // TODO: Appleサインイン機能の実装
+    throw UnimplementedError('Apple sign in not implemented yet');
+  }
+  
   // ユーザーのロールを確認
   Future<UserRole> getUserRole() async {
     final user = currentUser;
