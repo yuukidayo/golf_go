@@ -8,6 +8,7 @@ import '../../utils/test_data_helper.dart';
 import '../../widgets/coach/plan_card.dart';
 import 'plan_create_screen.dart';
 import 'time_slot_management_screen.dart';
+import 'reservation_calendar_screen.dart';
 
 class PlanListScreen extends StatefulWidget {
   const PlanListScreen({super.key});
@@ -23,9 +24,17 @@ class _PlanListScreenState extends State<PlanListScreen> {
   List<Plan> _plans = [];
   User? _currentUser;
   
+  // ナビゲーション関連
+  int _currentIndex = 0;
+  late final List<Widget> _screens;
+  
   @override
   void initState() {
     super.initState();
+    _screens = [
+      Container(), // プラン管理画面は現在の画面なので空のコンテナ
+      const ReservationCalendarScreen(),
+    ];
     _loadCurrentUser();
     _loadPlans();
   }
@@ -309,10 +318,10 @@ class _PlanListScreenState extends State<PlanListScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false, // 戻るボタンを非表示
-        title: const Text('プラン管理'),
+        title: Text(_currentIndex == 0 ? 'プラン管理' : '予約管理'),
         actions: [
           // テスト予約作成ボタン（開発用）
-          if (kDebugMode)
+          if (kDebugMode && _currentIndex == 0)
             IconButton(
               icon: const Icon(Icons.bug_report),
               onPressed: _createTestReservations,
@@ -320,12 +329,49 @@ class _PlanListScreenState extends State<PlanListScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
         onPressed: _navigateToCreatePlan,
         backgroundColor: AppColors.gold,
         child: const Icon(Icons.add),
+      ) : null,
+      body: _currentIndex == 0 ? _buildPlanManagement() : _screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          if (index == 2) {
+            // マイページ（準備中）
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('マイページは準備中です')),
+            );
+          } else {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
+        },
+        selectedItemColor: AppColors.gold,
+        unselectedItemColor: Colors.grey,
+        backgroundColor: Colors.white,
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.view_list_outlined),
+            activeIcon: Icon(Icons.view_list),
+            label: 'プラン管理',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined),
+            activeIcon: Icon(Icons.calendar_month),
+            label: '予約管理',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_circle_outlined),
+            activeIcon: Icon(Icons.account_circle),
+            label: 'マイページ',
+          ),
+        ],
       ),
-      body: _buildPlanManagement(),
     );
   }
 
