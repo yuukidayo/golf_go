@@ -556,44 +556,5 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
           );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final japaneseFormatter = DateFormat('M月d日(E)', 'ja_JP');
-    final currencyFormatter = NumberFormat('#,###', 'ja_JP');
-
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: true,
-        centerTitle: true,
-        title: const Text(
-          '予約管理',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        actions: [
-          // カレンダー/リスト切替アイコン
-          IconButton(
-            icon: Icon(
-              _isCalendarView ? Icons.list : Icons.calendar_month,
-              color: AppColors.gold,
-            ),
-            onPressed: () {
-              setState(() {
-                _isCalendarView = !_isCalendarView;
-              });
-            },
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
-          : _isCalendarView
-              ? _buildCalendarView()
-              : _buildUpcomingReservationsView(japaneseFormatter, currencyFormatter),
-    );
-  }
+  // 重複したbuildメソッドを削除（303行目のメソッドとの重複）
 }
