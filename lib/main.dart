@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:golf_go/screens/coach/coach_main_screen.dart';
 import 'package:golf_go/screens/coach/plan_list_screen.dart';
 import 'package:golf_go/screens/coach_registration_screen.dart';
 import 'package:golf_go/screens/golfer_registration_screen.dart';
@@ -37,9 +38,9 @@ void main() async {
   String initialRoute = '/';
   
   if (currentUser != null) {
-    // ユーザーがログイン済みの場合はプラン一覧画面を表示
+    // ユーザーがログイン済みの場合はコーチメイン画面を表示
     print('User already logged in: ${currentUser.uid}');
-    initialRoute = '/coach/plans';
+    initialRoute = '/coach/main';
   } else {
     print('No user logged in');
     // ログインしていない場合はウェルカム画面を表示
@@ -66,6 +67,7 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/register/coach': (context) => const CoachRegistrationScreen(), // 認定コーチ申請画面
         '/register/golfer': (context) => const GolferRegistrationScreen(), // レッスン受講者登録画面
+        '/coach/main': (context) => const CoachMainScreen(),
         '/coach/plans': (context) => const PlanListScreen(),
         '/login': (context) => const RegisterScreen(), // 一時的に登録画面を使用 (後で修正)
       },
