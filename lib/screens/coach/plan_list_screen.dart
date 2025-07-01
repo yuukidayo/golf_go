@@ -308,6 +308,7 @@ class _PlanListScreenState extends State<PlanListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false, // 戻るボタンを非表示
         title: const Text('プラン管理'),
         actions: [
           // テスト予約作成ボタン（開発用）
