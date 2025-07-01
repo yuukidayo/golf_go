@@ -7,7 +7,16 @@ import '../../theme/app_theme.dart';
 import '../../models/time_slot.dart';
 
 class ReservationCalendarScreen extends StatefulWidget {
-  const ReservationCalendarScreen({super.key});
+  final bool showAppBar; // AppBar表示フラグを追加
+  final bool initialCalendarView; // 初期表示モード (カレンダーorリスト)
+  final Function(bool)? onViewModeChanged; // 表示モード変更時のコールバック
+  
+  const ReservationCalendarScreen({
+    super.key,
+    this.showAppBar = true, // デフォルトではAppBarを表示
+    this.initialCalendarView = false, // デフォルトはリスト表示
+    this.onViewModeChanged,
+  });
 
   @override
   State<ReservationCalendarScreen> createState() => _ReservationCalendarScreenState();
@@ -40,7 +49,7 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _isCalendarView = false; // 明示的にリスト表示に設定
+    _isCalendarView = widget.initialCalendarView; // 親から渡された初期表示モードを使用
     _loadUpcomingReservations(); // リスト表示用の直近予約を読み込む
   }
 
@@ -304,38 +313,59 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
     final japaneseFormatter = DateFormat('M月d日(E)', 'ja_JP');
     final currencyFormatter = NumberFormat('#,###', 'ja_JP');
 
+    // アプリバーを表示するかどうかをウィジェットから取得
+    final showAppBar = widget.showAppBar;
+    
+    // カレンダー/リスト切替アイコン
+    final switchViewButton = IconButton(
+      icon: Icon(
+        _isCalendarView ? Icons.list : Icons.calendar_month,
+        color: AppColors.gold,
+        size: 28,
+      ),
+      tooltip: _isCalendarView ? 'リスト表示に切替' : 'カレンダー表示に切替',
+      onPressed: () {
+        setState(() {
+          _isCalendarView = !_isCalendarView;
+          // 親コンポーネントに表示モードの変更を通知
+          widget.onViewModeChanged?.call(_isCalendarView);
+        });
+      },
+    );
+    
     return Scaffold(
-      appBar: AppBar(
-        // 戻るボタンを表示
-        automaticallyImplyLeading: true,
+      // AppBarを条件付きで表示
+      appBar: showAppBar ? AppBar(
+        automaticallyImplyLeading: false,
         centerTitle: true,
-        title: const Text(
-          '予約管理',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        title: null,
         backgroundColor: Colors.white,
         elevation: 1,
         actions: [
-          // カレンダー/リスト切替アイコン - サイズを大きくして見やすく
-          IconButton(
-            icon: Icon(
-              _isCalendarView ? Icons.list : Icons.calendar_month,
-              color: AppColors.gold,
-              size: 28,  // サイズを大きく設定
-            ),
-            tooltip: _isCalendarView ? 'リスト表示に切替' : 'カレンダー表示に切替',  // ツールチップを追加
-            onPressed: () {
-              setState(() {
-                _isCalendarView = !_isCalendarView;
-              });
-            },
-          ),
-          // 余白追加
-          const SizedBox(width: 8),
+          switchViewButton,
+          const SizedBox(width: 12),
         ],
+      ) : null,
+      // AppBarを表示しない場合、ビュー切替ボタンをbodyの上部に配置
+      floatingActionButtonLocation: showAppBar ? null : FloatingActionButtonLocation.endTop,
+      floatingActionButton: showAppBar ? null : Padding(
+        padding: const EdgeInsets.only(top: 12, right: 8),
+        child: FloatingActionButton(
+          elevation: 2,
+          backgroundColor: Colors.white,
+          mini: true,
+          child: Icon(
+            _isCalendarView ? Icons.list : Icons.calendar_month,
+            color: AppColors.gold,
+          ),
+          onPressed: () {
+            setState(() {
+              _isCalendarView = !_isCalendarView;
+              // 親コンポーネントに表示モードの変更を通知
+              widget.onViewModeChanged?.call(_isCalendarView);
+            });
+          },
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
@@ -349,18 +379,30 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
   Widget _buildCalendarView() {
     return Column(
       children: [
-        Card(
-          margin: const EdgeInsets.all(8.0),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        // カレンダーウィジェットを改善
+        Container(
+          margin: const EdgeInsets.fromLTRB(12.0, 12.0, 12.0, 8.0),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.fromLTRB(8.0, 12.0, 8.0, 16.0),
             child: TableCalendar(
               firstDay: DateTime.utc(2023, 1, 1),
               lastDay: DateTime.utc(2030, 12, 31),
               focusedDay: _focusedDay,
               calendarFormat: _calendarFormat,
               eventLoader: _getEventsForDay,
+              daysOfWeekHeight: 36,  // 曜日表示の高さを増加
+              rowHeight: 48,  // 日付行の高さを増加
               selectedDayPredicate: (day) {
                 return isSameDay(_selectedDay, day);
               },
@@ -384,74 +426,188 @@ class _ReservationCalendarScreenState extends State<ReservationCalendarScreen> {
                 _focusedDay = focusedDay;
                 _loadMonthEvents(focusedDay);
               },
-              calendarStyle: const CalendarStyle(
-                markerDecoration: BoxDecoration(
+              calendarStyle: CalendarStyle(
+                // 予約マーカーのスタイル
+                markersMaxCount: 3,  // 表示するマーカーの最大数
+                markerDecoration: const BoxDecoration(
+                  color: AppColors.gold,
+                  shape: BoxShape.circle,
+                  // マーカーサイズを調整
+                ),
+                markerSize: 6.0,  // マーカーサイズを小さく
+                markersAnchor: 0.7,  // マーカー位置を調整
+                // 今日の日付のスタイル
+                todayDecoration: const BoxDecoration(
+                  color: Color(0xFFE9F2FF),
+                  shape: BoxShape.circle,
+                ),
+                todayTextStyle: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+                // 選択日のスタイル
+                selectedDecoration: const BoxDecoration(
                   color: AppColors.gold,
                   shape: BoxShape.circle,
                 ),
-                todayDecoration: BoxDecoration(
-                  color: Color(0xFFDCE9F6),
-                  shape: BoxShape.circle,
+                selectedTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-                selectedDecoration: BoxDecoration(
-                  color: AppColors.gold,
-                  shape: BoxShape.circle,
+                // 通常の日のスタイル
+                defaultTextStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                ),
+                // 週末の色を変更
+                weekendTextStyle: const TextStyle(
+                  color: Color(0xFFE57373),
+                  fontWeight: FontWeight.w500,
+                ),
+                // 範囲外の日付のスタイル
+                outsideTextStyle: const TextStyle(
+                  color: Color(0x99999999),  // Grey with 60% opacity
                 ),
               ),
               headerStyle: HeaderStyle(
+                titleCentered: true,
+                formatButtonVisible: true,
                 formatButtonDecoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12.0),
+                  color: const Color(0x26D4AF37),  // Gold with 15% opacity
+                  borderRadius: const BorderRadius.all(Radius.circular(16.0)),
                 ),
-                formatButtonTextStyle: TextStyle(
+                formatButtonTextStyle: const TextStyle(
                   color: AppColors.gold,
                   fontWeight: FontWeight.bold,
                 ),
-                titleCentered: true,
                 titleTextStyle: const TextStyle(
-                  fontSize: 16.0,
+                  fontSize: 18.0,
                   fontWeight: FontWeight.bold,
+                ),
+                leftChevronIcon: const Icon(
+                  Icons.chevron_left,
+                  color: AppColors.gold,
+                  size: 28,
+                ),
+                rightChevronIcon: const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.gold,
+                  size: 28,
+                ),
+              ),
+              // 曜日スタイルを改善
+              daysOfWeekStyle: const DaysOfWeekStyle(
+                weekdayStyle: TextStyle(
+                  color: Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                weekendStyle: TextStyle(
+                  color: Color(0xFFE57373),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        // 選択日の表示
+        if (_selectedDay != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    DateFormat('yyyy年M月d日(E)', 'ja_JP').format(_selectedDay!),
+                    style: TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'の予約',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+        // 予約リスト表示を改善
         Expanded(
           child: _reservations.isEmpty
-              ? const Center(child: Text('この日の予約はありません'))
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_busy, size: 64, color: Colors.grey[350]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'この日の予約はありません',
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.builder(
                   itemCount: _reservations.length,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemBuilder: (context, index) {
                     final reservation = _reservations[index];
                     return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      elevation: 2,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: ListTile(
-                        title: Text(
-                          '${reservation['startTime']} 〜 ${reservation['endTime']}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        leading: CircleAvatar(
+                          backgroundColor: AppColors.gold.withOpacity(0.15),
+                          child: Icon(Icons.person, color: AppColors.gold),
+                        ),
+                        title: Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            '${reservation['startTime']} 〜 ${reservation['endTime']}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                         subtitle: Text(
                           '${reservation['userName']} 様',
+                          style: TextStyle(fontSize: 14),
                         ),
-                        trailing: Text(
-                          '¥${reservation['price'].toString().replaceAllMapped(
-                            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), 
-                            (Match m) => '${m[1]},'
-                          )}',
-                          style: const TextStyle(
-                            color: AppColors.gold, 
-                            fontWeight: FontWeight.w500
-                          ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '¥${NumberFormat('#,###', 'ja_JP').format(reservation['price'])}',
+                              style: const TextStyle(
+                                color: AppColors.gold,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
                         onTap: () {
                           // 予約詳細表示処理
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('予約詳細表示機能は次のステップで実装します')),
+                            const SnackBar(
+                              content: Text('予約詳細表示機能は次のステップで実装します'),
+                              backgroundColor: AppColors.gold,
+                            ),
                           );
                         },
                       ),

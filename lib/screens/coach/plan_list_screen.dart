@@ -24,6 +24,9 @@ class _PlanListScreenState extends State<PlanListScreen> {
   List<Plan> _plans = [];
   User? _currentUser;
   
+  // カレンダー/リスト表示モード切替用の変数
+  bool _isCalendarView = false;
+  
   // ナビゲーション関連
   int _currentIndex = 0;
   late final List<Widget> _screens;
@@ -41,7 +44,16 @@ class _PlanListScreenState extends State<PlanListScreen> {
   
   // 予約管理画面を構築するメソッド
   Widget _buildReservationCalendarScreen() {
-    return const ReservationCalendarScreen();
+    // 予約カレンダー画面を埋め込む際にAppBarを非表示に設定し、表示モードを親から渡す
+    return ReservationCalendarScreen(
+      showAppBar: false,
+      initialCalendarView: _isCalendarView,
+      onViewModeChanged: (isCalendarView) {
+        setState(() {
+          _isCalendarView = isCalendarView;
+        });
+      },
+    );
   }
 
   // 現在ログインしているユーザーを取得
@@ -325,6 +337,23 @@ class _PlanListScreenState extends State<PlanListScreen> {
         automaticallyImplyLeading: false, // 戻るボタンを非表示
         title: Text(_currentIndex == 0 ? 'プラン管理' : '予約管理'),
         actions: [
+          // 予約管理画面の場合はカレンダー/リスト切替アイコンを表示
+          if (_currentIndex == 1)
+            IconButton(
+              icon: Icon(
+                _isCalendarView ? Icons.list : Icons.calendar_month,
+                color: AppColors.gold,
+                size: 28,
+              ),
+              tooltip: _isCalendarView ? 'リスト表示に切替' : 'カレンダー表示に切替',
+              onPressed: () {
+                setState(() {
+                  _isCalendarView = !_isCalendarView;
+                  // _screensを再構築して新しい表示モードをReservationCalendarScreenに伝える
+                  _screens[1] = _buildReservationCalendarScreen();
+                });
+              },
+            ),
           // テスト予約作成ボタン（開発用）
           if (kDebugMode && _currentIndex == 0)
             IconButton(
@@ -332,6 +361,8 @@ class _PlanListScreenState extends State<PlanListScreen> {
               onPressed: _createTestReservations,
               tooltip: 'テスト予約を作成',
             ),
+          // 右側に余白を追加
+          const SizedBox(width: 12),
         ],
       ),
       floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
