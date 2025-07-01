@@ -33,10 +33,15 @@ class _PlanListScreenState extends State<PlanListScreen> {
     super.initState();
     _screens = [
       Container(), // プラン管理画面は現在の画面なので空のコンテナ
-      const ReservationCalendarScreen(),
+      _buildReservationCalendarScreen(), // 予約管理画面をビルダー関数で生成
     ];
     _loadCurrentUser();
     _loadPlans();
+  }
+  
+  // 予約管理画面を構築するメソッド
+  Widget _buildReservationCalendarScreen() {
+    return const ReservationCalendarScreen();
   }
 
   // 現在ログインしているユーザーを取得

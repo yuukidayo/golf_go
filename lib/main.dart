@@ -9,10 +9,16 @@ import 'package:golf_go/screens/register_screen.dart';
 import 'package:golf_go/screens/welcome_screen.dart';
 import 'package:golf_go/services/auth_service.dart';
 import 'package:golf_go/theme/app_theme.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() async {
   // アプリの起動時に画面の向きを縦向きに固定
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 日本語ロケールデータの初期化
+  await initializeDateFormatting('ja_JP', null);
+  Intl.defaultLocale = 'ja_JP';
   
   // Firebase初期化
   try {
