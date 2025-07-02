@@ -1,12 +1,12 @@
-# Define a global platform for your project
-platform :ios, '14.0'
+# Uncomment this line to define a global platform for your project
+platform :ios, '13.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
   'Debug' => :debug,
-  'Profile' => :release,
+  'Profile' => :profile,
   'Release' => :release,
 }
 
@@ -37,26 +37,7 @@ target 'Runner' do
 end
 
 post_install do |installer|
-  # Apply Flutter-iOS additional build settings
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
-  end
-
-  # Fix for GoogleUtilities/Environment version conflicts
-  installer.aggregate_targets.each do |aggregate_target|
-    # Apply preprocessor definitions to user project configurations
-    aggregate_target.user_project.build_configurations.each do |bc|
-      bc.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)', 'COCOAPODS=1', 'LIBRARY_SOLUTION=1']
-    end
-  end
-
-  # Force GoogleUtilities to use a common version
-  installer.pods_project.targets.each do |target|
-    if target.name.start_with?('GoogleUtilities')
-      target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.0'
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
-      end
-    end
   end
 end
