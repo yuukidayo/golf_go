@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:golf_go/firebase_options.dart';
 import 'package:golf_go/screens/coach/plan_list_screen.dart';
 import 'package:golf_go/screens/coach_registration_screen.dart';
 import 'package:golf_go/screens/golfer/golfer_main_screen.dart';
@@ -8,6 +9,7 @@ import 'package:golf_go/screens/golfer_registration_screen.dart';
 import 'package:golf_go/screens/login_screen.dart';
 import 'package:golf_go/screens/register_screen.dart';
 import 'package:golf_go/screens/welcome_screen.dart';
+import 'package:golf_go/screens/welcome_screen_safe.dart'; // 安全版のウェルカム画面
 import 'package:golf_go/services/auth_service.dart';
 import 'package:golf_go/theme/app_theme.dart';
 import 'package:intl/intl.dart';
@@ -21,12 +23,17 @@ void main() async {
   await initializeDateFormatting('ja_JP', null);
   Intl.defaultLocale = 'ja_JP';
   
-  // Firebase初期化
+  // Firebase初期化 - シンプルな実装に戻す
   try {
-    await Firebase.initializeApp();
-    print('Firebase initialized successfully');
+    // Firebase optionsを明示的に指定して初期化
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('Firebase initialized successfully with options: ${DefaultFirebaseOptions.currentPlatform.projectId}');
   } catch (e) {
+    // Firebaseの初期化に失敗した場合のログ
     print('Failed to initialize Firebase: $e');
+    // 初期化失敗時もアプリを続行する
   }
   
   SystemChrome.setPreferredOrientations([
@@ -78,7 +85,7 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.luxuryTheme, // 高級感のある白ベースのテーマを適用
       initialRoute: initialRoute, // ログイン状態に応じた初期ルート
       routes: {
-        '/': (context) => const WelcomeScreen(),
+        '/': (context) => const WelcomeScreenSafe(), // 安全版のウェルカム画面を使用
         '/register': (context) => const RegisterScreen(),
         '/register/coach': (context) => const CoachRegistrationScreen(), // 認定コーチ申請画面
         '/register/golfer': (context) => const GolferRegistrationScreen(), // レッスン受講者登録画面
