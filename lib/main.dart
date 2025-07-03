@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:golf_go/screens/coach/plan_list_screen.dart';
 import 'package:golf_go/screens/coach_registration_screen.dart';
 import 'package:golf_go/screens/golfer/golfer_main_screen.dart';
@@ -25,6 +26,33 @@ void main() async {
   try {
     await Firebase.initializeApp();
     print('Firebase initialized successfully');
+    
+    // Firebase Messagingの初期化
+    final messaging = FirebaseMessaging.instance;
+    
+    // 通知権限をリクエスト
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    
+    print('User granted permission: ${settings.authorizationStatus}');
+    
+    // FCMトークンを取得
+    String? token = await messaging.getToken();
+    print('FCM Token: $token');
+    
+    // フォアグラウンドでのメッセージ処理
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Got a message whilst in the foreground!');
+      print('Message data: ${message.data}');
+      
+      if (message.notification != null) {
+        print('Message also contained a notification: ${message.notification}');
+      }
+    });
+    
   } catch (e) {
     print('Failed to initialize Firebase: $e');
   }
